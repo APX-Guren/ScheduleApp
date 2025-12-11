@@ -13,13 +13,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Set Environment Variables
+      # FIX 1: Set BOTH environment variables
       - name: Set Environment Variables
         run: |
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 to install the SDK tools (Prevents installer crash)
+      # FIX 2: Use Java 17 to install the SDK tools (More reliable for the installer)
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -29,7 +29,6 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK Tools (Build Tools 30.0.3)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -37,19 +36,17 @@ jobs:
           
           # Download tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-          
-          # Unzip safely
           unzip -q tools.zip -d temp_tools
           mkdir -p cmdline-tools/latest
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
           
-          # Install components
+          # Install Build Tools 30.0.3 explicitly
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
-      - name: Set up JDK 11 for Cordova
+      # FIX 3: Now switch to Java 11 for Cordova (Cordova needs 11, but we already installed the tools)
+      - name: Set up JDK 11 for Cordova Build
         uses: actions/setup-java@v4
         with:
           java-version: 11
@@ -68,7 +65,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. Fix: Install the specific plugin version explicitly
+      # FIX 4: Install the specific plugin version explicitly
       - name: Install Fixed Plugin Version
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -76,7 +73,6 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. Fix Gradle Version (Cordova 10 needs Gradle 7.x)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -87,16 +83,11 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Permissions + Force APK + Skip Lint
+      # FIX 5: Fix permissions and Skip Lint to prevent build failure
       - name: Prepare and build
         run: |
           cordova prepare android
-          
-          # Fix permission issue common in CI
           chmod +x platforms/android/gradlew
-          
-          # 1. Force packageType=apk (matches your upload step)
-          # 2. Add -x lint to prevent build from failing on minor warnings
           cordova build android --release -- --packageType=apk --gradleArg=-x --gradleArg=lint
 
       - name: Upload APK
