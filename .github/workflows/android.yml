@@ -19,7 +19,7 @@ jobs:
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 for SDK Install
+      # 2. Use Java 17 for SDK Install (Prevents installer crash)
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -34,15 +34,18 @@ jobs:
         run: |
           mkdir -p $ANDROID_HOME
           cd $ANDROID_HOME
+          # Download
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
+          # Unzip safely
           unzip -q tools.zip -d temp_tools
           mkdir -p cmdline-tools/latest
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
+          # Install Licenses & Tools
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-      # 4. SWITCH to Java 11 for Cordova Build
+      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
       - name: Set up JDK 11 for Cordova
         uses: actions/setup-java@v4
         with:
@@ -62,7 +65,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins (Adapter and Multidex)
+      # 5. FIX: Install Plugins (Adapter and Multidex fix build crashes)
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,7 +75,7 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Use Gradle 7.4.2
+      # 6. FIX: Use Gradle 7.4.2 (Most stable for Cordova 10)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -83,18 +86,16 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Run Gradle DIRECTLY (Bypass Cordova CLI)
-      # This fixes the "Command failed with exit code 1" issue.
+      # 7. CRITICAL FIX: Run Global Gradle
+      # We removed "./gradlew" and used just "gradle".
+      # We also force AndroidX and Jetifier to fix plugin compatibility.
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
           
-          # Grant permissions
-          chmod -R +x platforms/android/
-          
-          # Enter platform folder and run Gradle directly
           cd platforms/android
-          ./gradlew assembleDebug \
+          
+          gradle assembleDebug \
             --stacktrace \
             --info \
             -Pandroid.useAndroidX=true \
