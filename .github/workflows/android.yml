@@ -19,7 +19,7 @@ jobs:
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 for SDK Install (Prevents installer crash)
+      # 2. Use Java 17 for SDK Install
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -29,7 +29,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK Tools (Build Tools 30.0.3)
+      # 3. Install Android SDK Tools
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -42,7 +42,7 @@ jobs:
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
+      # 4. SWITCH to Java 11 for Cordova Build
       - name: Set up JDK 11 for Cordova
         uses: actions/setup-java@v4
         with:
@@ -62,7 +62,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins (Adapter and Multidex fix most build errors)
+      # 5. FIX: Install Plugins
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,31 +72,28 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Use Gradle 7.6 (Compatible with Java 11 and Android 10)
+      # 6. FIX: Use Gradle 7.4.2 (Most stable for Cordova 10)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '7.6'
+          gradle-version: '7.4.2'
 
       - name: Add Android platform
         run: |
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Build Debug APK
-      # - "clean": Removes old corrupt files
-      # - "--debug": Skips strict errors that fail release builds
-      # - "chmod": Ensures gradle works
+      # 7. CRITICAL FIX: Build with Jetifier Flags
+      # Added: -Pandroid.useAndroidX=true -Pandroid.enableJetifier=true
+      # These flags force the build system to convert the old 'local-notification' plugin code
+      # so it doesn't crash the build.
       - name: Prepare and build
         run: |
-          cordova clean android
           cordova prepare android
           chmod -R +x platforms/android/
           
-          cordova build android --debug -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
+          cordova build android --debug -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Pandroid.useAndroidX=true --gradleArg=-Pandroid.enableJetifier=true --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
 
-      # 8. Upload Debug APK
-      # Note: Path changes from 'release' to 'debug'
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
