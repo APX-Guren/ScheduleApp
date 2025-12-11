@@ -28,7 +28,8 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # FIX 1: Go back to stable Build Tools 30.0.3
+      # FIX 1: Install Build Tools 32.0.0
+      # 30.0.3 crashes on new Linux. 33.0.2 is corrupted. 32.0.0 is the Goldilocks version.
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -39,8 +40,8 @@ jobs:
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          # Reverted to 30.0.3 (Stable)
-          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
+          # Installing 32.0.0 explicitly
+          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;32.0.0"
 
       # Switch to Java 11 for Cordova
       - name: Set up JDK 11 for Cordova
@@ -71,20 +72,19 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # FIX 2: Downgrade Gradle to 7.1.1
-      # This version is perfectly compatible with Build Tools 30.0.3
+      # FIX 2: Use Gradle 7.4.2 (Required for Build Tools 32+)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '7.1.1'
+          gradle-version: '7.4.2'
 
       - name: Add Android platform
         run: |
           cordova platform remove android || true
           cordova platform add android@10
 
-      # FIX 3: Build using aligned versions
-      # Removed PcdvBuildToolsVersion flag (Cordova will auto-detect 30.0.3)
+      # FIX 3: Force usage of Build Tools 32.0.0
+      # We pass -PcdvBuildToolsVersion=32.0.0 so Cordova doesn't try to look for the old 30.0.3
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
@@ -94,6 +94,7 @@ jobs:
             --stacktrace \
             --info \
             -x lint \
+            -PcdvBuildToolsVersion=32.0.0 \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             -Dorg.gradle.daemon=false \
