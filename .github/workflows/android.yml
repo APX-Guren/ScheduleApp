@@ -13,13 +13,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Set Environment Variables
       - name: Set Environment Variables
         run: |
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 for SDK Install (Prevents installer crash)
+      # Use Java 17 for SDK Install
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -29,7 +28,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK Tools (Build Tools 30.0.3)
+      # FIX 1: Install Build Tools 33.0.2 (Required by Gradle 7.4+)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -40,9 +39,10 @@ jobs:
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
+          # INSTALLED 33.0.2 instead of 30.0.3
+          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;33.0.2"
 
-      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
+      # Switch to Java 11 for Cordova
       - name: Set up JDK 11 for Cordova
         uses: actions/setup-java@v4
         with:
@@ -62,7 +62,6 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins (Adapter and Multidex)
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,7 +71,6 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Use Gradle 7.4.2 globally
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -83,10 +81,7 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Run Global Gradle
-      # - We switch to the platform folder: "cd platforms/android"
-      # - We run "gradle" directly (instead of ./gradlew) to avoid "No such file" errors.
-      # - We include all flags to prevent memory crashes and plugin conflicts.
+      # FIX 2: Pass -PcdvBuildToolsVersion=33.0.2 to force usage of new tools
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
@@ -96,12 +91,12 @@ jobs:
             --stacktrace \
             --info \
             -x lint \
+            -PcdvBuildToolsVersion=33.0.2 \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             -Dorg.gradle.daemon=false \
             -Dorg.gradle.jvmargs=-Xmx4096m
 
-      # 8. Upload Debug APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
