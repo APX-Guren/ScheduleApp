@@ -7,7 +7,6 @@ on:
 
 jobs:
   build-android:
-    # 1. Use Ubuntu 22.04 (Stable for Android Builds)
     runs-on: ubuntu-22.04
 
     steps:
@@ -19,7 +18,7 @@ jobs:
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 11 (Best for Cordova 10)
+      # 1. Use Java 11 (Standard for Cordova 10)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
@@ -29,10 +28,8 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Build Tools 33.0.1 (The "Golden Version")
-      # - 30.0.3 crashes on Linux
-      # - 33.0.2 is missing the 'dx' file
-      # - 33.0.1 works perfectly
+      # 2. Install Build Tools 33.0.1 (Stable & Modern)
+      # We need version 33 to satisfy your plugin's requirements.
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -43,8 +40,8 @@ jobs:
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          # Installing 33.0.1 explicitly
-          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;33.0.1"
+          # Install Platform 33 and Build Tools 33.0.1
+          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-33" "build-tools;33.0.1"
 
       - name: Add tools to PATH
         run: |
@@ -59,7 +56,6 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 4. Install Plugins & Fixes
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -69,29 +65,32 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 5. Use Gradle 7.6 (Stable)
+      # 3. Use Gradle 7.4.2 (Most stable for this combination)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '7.6'
+          gradle-version: '7.4.2'
 
       - name: Add Android platform
         run: |
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 6. Create gradle.properties manually
-      # This ensures Jetifier is enabled BEFORE Gradle starts
-      - name: Configure Gradle Properties
+      # 4. THE UNIVERSAL FIX
+      # We create a gradle.properties file that OVERRIDES Cordova's defaults.
+      # - Force Compile SDK to 33 (Fixes plugin conflict)
+      # - Force Build Tools to 33.0.1 (Fixes crash)
+      # - Force AndroidX & Jetifier (Fixes legacy code)
+      - name: Configure Gradle Overrides
         run: |
           cd platforms/android
+          echo "cdvCompileSdkVersion=android-33" >> gradle.properties
+          echo "cdvBuildToolsVersion=33.0.1" >> gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx2048m" >> gradle.properties
 
-      # 7. Run Build
-      # - We LOWER memory to 2048m to prevent the Runner from killing the process (OOM)
-      # - We force usage of Build Tools 33.0.1
+      # 5. Run Gradle Directly
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
@@ -101,7 +100,6 @@ jobs:
             --stacktrace \
             --info \
             -x lint \
-            -PcdvBuildToolsVersion=33.0.1 \
             -Dorg.gradle.daemon=false
 
       - name: Upload APK
