@@ -28,8 +28,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # FIX 1: Install Build Tools 32.0.0
-      # 30.0.3 crashes on new Linux. 33.0.2 is corrupted. 32.0.0 is the Goldilocks version.
+      # FIX 1: Install Build Tools 33.0.2 (Stable on Linux)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -40,8 +39,19 @@ jobs:
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          # Installing 32.0.0 explicitly
-          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;32.0.0"
+          # Install 33.0.2
+          cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;33.0.2"
+
+      # FIX 2: Manually repair the "Corrupted" Build Tools 33.0.2
+      # Google removed 'dx' in this version, but Cordova needs it. We create a copy of 'd8' named 'dx'.
+      - name: Fix Corrupted Android SDK (Restore dx)
+        run: |
+          cd $ANDROID_HOME/build-tools/33.0.2
+          # Copy d8 to dx (Linux executable)
+          cp d8 dx
+          # Copy d8.jar to dx.jar (Java library)
+          cd lib
+          cp d8.jar dx.jar
 
       # Switch to Java 11 for Cordova
       - name: Set up JDK 11 for Cordova
@@ -72,7 +82,7 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # FIX 2: Use Gradle 7.4.2 (Required for Build Tools 32+)
+      # Use Gradle 7.4.2 (Compatible with Build Tools 33+)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -83,8 +93,7 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # FIX 3: Force usage of Build Tools 32.0.0
-      # We pass -PcdvBuildToolsVersion=32.0.0 so Cordova doesn't try to look for the old 30.0.3
+      # FIX 3: Force usage of our repaired 33.0.2 tools
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
@@ -94,7 +103,7 @@ jobs:
             --stacktrace \
             --info \
             -x lint \
-            -PcdvBuildToolsVersion=32.0.0 \
+            -PcdvBuildToolsVersion=33.0.2 \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             -Dorg.gradle.daemon=false \
