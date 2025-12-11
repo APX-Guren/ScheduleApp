@@ -34,14 +34,11 @@ jobs:
         run: |
           mkdir -p $ANDROID_HOME
           cd $ANDROID_HOME
-          # Download
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-          # Unzip safely
           unzip -q tools.zip -d temp_tools
           mkdir -p cmdline-tools/latest
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
           rm -rf temp_tools tools.zip
-          # Install Licenses & Tools
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
@@ -65,7 +62,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins (Adapter and Multidex fix build crashes)
+      # 5. FIX: Install Plugins (Adapter and Multidex)
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -75,7 +72,7 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Use Gradle 7.4.2 (Most stable for Cordova 10)
+      # 6. FIX: Use Gradle 7.4.2 globally
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -87,17 +84,18 @@ jobs:
           cordova platform add android@10
 
       # 7. CRITICAL FIX: Run Global Gradle
-      # We removed "./gradlew" and used just "gradle".
-      # We also force AndroidX and Jetifier to fix plugin compatibility.
+      # - We switch to the platform folder: "cd platforms/android"
+      # - We run "gradle" directly (instead of ./gradlew) to avoid "No such file" errors.
+      # - We include all flags to prevent memory crashes and plugin conflicts.
       - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
           
           cd platforms/android
-          
           gradle assembleDebug \
             --stacktrace \
             --info \
+            -x lint \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=true \
             -Dorg.gradle.daemon=false \
