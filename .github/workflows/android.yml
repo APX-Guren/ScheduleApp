@@ -73,6 +73,12 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.6'
+          
+
       - name: Add Android platform
         run: |
           cordova platform remove android || true
