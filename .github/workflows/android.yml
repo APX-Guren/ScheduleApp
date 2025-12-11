@@ -62,12 +62,17 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugin AND the AndroidX Adapter
-      # The adapter automatically fixes the "Exit Code 1" crash caused by plugin conflicts
-      - name: Install Fixed Plugins
+      # 5. FIX: Install "Kitchen Sink" of Fixer Plugins
+      # - local-notification: The feature you want
+      # - androidx-adapter: Fixes "support library" crashes
+      # - enable-multidex: Fixes "64k method limit" crashes (Very common with AndroidX)
+      # - kotlin: Fixes "Class not found" crashes if dependencies use Kotlin
+      - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
           npm install cordova-plugin-androidx-adapter --save-dev
+          npm install cordova-plugin-enable-multidex --save-dev
+          npm install cordova-plugin-kotlin --save-dev
 
       - name: Install other npm deps
         run: npm install
@@ -82,15 +87,15 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 6. CRITICAL FIX: Permissions + No Daemon + Skip Lint
+      # 6. FIX: Build with Stacktrace + Memory Boost
       - name: Prepare and build
         run: |
           cordova prepare android
-          # Recursive chmod to ensure gradlew and all scripts are executable
           chmod -R +x platforms/android/
           
-          # Build with --no-daemon to prevent memory crashes
-          cordova build android --release -- --packageType=apk --gradleArg=-x --gradleArg=lint --gradleArg=-Dorg.gradle.daemon=false
+          # Added --stacktrace to see the error if it fails
+          # Added -Dorg.gradle.jvmargs to prevent Out of Memory errors
+          cordova build android --release -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
