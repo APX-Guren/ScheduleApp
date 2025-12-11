@@ -9,7 +9,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
-       steps:
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -52,8 +52,6 @@ jobs:
           java-version: 11
           distribution: temurin
 
-      # ... (Keep the rest of your file exactly as it was: Node, Cordova CLI, Gradle 7.6, etc.)
-
       - name: Add tools to PATH
         run: |
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
@@ -67,8 +65,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 4. FIX: Install the specific plugin version explicitly
-      # This fixes the "No matching version found" error by adding it to dependencies manually
+      # FIX 4: Install the specific plugin version explicitly
       - name: Install Fixed Plugin Version
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -80,7 +77,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '7.6'
-          
 
       - name: Add Android platform
         run: |
