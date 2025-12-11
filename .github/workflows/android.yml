@@ -62,17 +62,13 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install "Kitchen Sink" of Fixer Plugins
-      # - local-notification: The feature you want
-      # - androidx-adapter: Fixes "support library" crashes
-      # - enable-multidex: Fixes "64k method limit" crashes (Very common with AndroidX)
-      # - kotlin: Fixes "Class not found" crashes if dependencies use Kotlin
+      # 5. FIX: Removed the failing Kotlin plugin.
+      # Kept AndroidX Adapter and Multidex which are critical for fixing build crashes.
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
           npm install cordova-plugin-androidx-adapter --save-dev
           npm install cordova-plugin-enable-multidex --save-dev
-          npm install cordova-plugin-kotlin --save-dev
 
       - name: Install other npm deps
         run: npm install
@@ -87,14 +83,13 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 6. FIX: Build with Stacktrace + Memory Boost
+      # 6. Build with Stacktrace + Memory Boost
       - name: Prepare and build
         run: |
           cordova prepare android
           chmod -R +x platforms/android/
           
-          # Added --stacktrace to see the error if it fails
-          # Added -Dorg.gradle.jvmargs to prevent Out of Memory errors
+          # Build arguments to prevent memory crashes and show errors if they happen
           cordova build android --release -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
 
       - name: Upload APK
