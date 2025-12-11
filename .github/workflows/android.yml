@@ -13,11 +13,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # FIX 1: Set Environment Variables dynamically using GitHub Contexts
+      # 1. Set Environment Variables
       - name: Set Environment Variables
         run: |
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
+      # 2. Setup Java 11 (Required for Cordova Android 10)
       - name: Set up JDK 11
         uses: actions/setup-java@v4
         with:
@@ -27,7 +28,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # FIX 2: Install Android SDK safely using a temp folder to avoid 'mv' errors
+      # 3. Install Android SDK (Fixed to prevent 'mv' errors)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -36,7 +37,7 @@ jobs:
           # Download command line tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
           
-          # Unzip to a temporary folder first
+          # Unzip to a temporary folder first to avoid moving folder into itself
           unzip -q tools.zip -d temp_tools
           
           # Move to the correct structure
@@ -63,11 +64,27 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # FIX 3: Patch package.json to fix the missing plugin version error
-      - name: Fix Local Notification Plugin Version
+      # 4. FIX: Install the specific plugin version explicitly
+      # This fixes the "No matching version found" error by adding it to dependencies manually
+      - name: Install Fixed Plugin Version
         run: |
-          echo "Patching package.json to use existing plugin version..."
-          sed -i 's/"cordova-plugin-local-notification": "\^0.9.0"/"cordova-plugin-local-notification": "0.9.0-beta.3"/g' package.json
-          
-          if [ -f config.xml ]; then
-            sed -i 's/spec="\^0.9.0"/spec="0.
+          npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
+
+      - name: Install other npm deps
+        run: npm install
+
+      - name: Add Android platform
+        run: |
+          cordova platform remove android || true
+          cordova platform add android@10
+
+      - name: Prepare and build
+        run: |
+          cordova prepare android
+          cordova build android --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: platforms/android/app/build/outputs/apk/release/*.apk
