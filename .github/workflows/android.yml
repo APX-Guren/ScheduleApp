@@ -83,11 +83,11 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # FIX 5: Fix permissions and Skip Lint to prevent build failure
+      # FIX 5: Added "|| true" to chmod to prevent "No such file" error
       - name: Prepare and build
         run: |
           cordova prepare android
-          chmod +x platforms/android/gradlew
+          chmod +x platforms/android/gradlew || true
           cordova build android --release -- --packageType=apk --gradleArg=-x --gradleArg=lint
 
       - name: Upload APK
