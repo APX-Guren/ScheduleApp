@@ -9,47 +9,50 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
 
-    steps:
+        steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Set Environment Variables
+      # FIX 1: Set BOTH environment variables
       - name: Set Environment Variables
         run: |
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Setup Java 11 (Required for Cordova Android 10)
-      - name: Set up JDK 11
+      # FIX 2: Use Java 17 to install the SDK tools (More reliable for the installer)
+      - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
-          java-version: 11
+          java-version: 17
           distribution: temurin
 
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK (Fixed to prevent 'mv' errors)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
           cd $ANDROID_HOME
           
-          # Download command line tools
+          # Download tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O tools.zip
-          
-          # Unzip to a temporary folder first to avoid moving folder into itself
           unzip -q tools.zip -d temp_tools
-          
-          # Move to the correct structure
           mkdir -p cmdline-tools/latest
           mv temp_tools/cmdline-tools/* cmdline-tools/latest/
-          
-          # Clean up
           rm -rf temp_tools tools.zip
           
-          # Accept licenses and install specific build tools
+          # Install Build Tools 30.0.3 explicitly
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
+
+      # FIX 3: Now switch to Java 11 for Cordova (Cordova needs 11, but we already installed the tools)
+      - name: Set up JDK 11 for Cordova Build
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: temurin
+
+      # ... (Keep the rest of your file exactly as it was: Node, Cordova CLI, Gradle 7.6, etc.)
 
       - name: Add tools to PATH
         run: |
