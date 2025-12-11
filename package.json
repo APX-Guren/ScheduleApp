@@ -1,0 +1,18 @@
+{
+  "name": "schedule-app",
+  "version": "1.0.0",
+  "description": "Schedule App converted to Cordova Android",
+  "scripts": {
+    "prepare": "cordova prepare",
+    "build:android": "cordova build android --release"
+  },
+  "devDependencies": {},
+  "cordova": {
+    "plugins": {
+      "cordova-plugin-local-notification": {}
+    },
+    "platforms": [
+      "android"
+    ]
+  }
+}
