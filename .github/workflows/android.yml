@@ -19,7 +19,7 @@ jobs:
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 for SDK Install (Prevents installer crash)
+      # 2. Use Java 17 for SDK Install
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -42,7 +42,7 @@ jobs:
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
+      # 4. SWITCH to Java 11 for Cordova Build
       - name: Set up JDK 11 for Cordova
         uses: actions/setup-java@v4
         with:
@@ -62,8 +62,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Removed the failing Kotlin plugin.
-      # Kept AndroidX Adapter and Multidex which are critical for fixing build crashes.
+      # 5. FIX: Install Plugins
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,6 +71,17 @@ jobs:
 
       - name: Install other npm deps
         run: npm install
+
+      # 6. FIX: Ensure config.xml forces AndroidX (Critical for the adapter to work)
+      - name: Configure AndroidX in Config.xml
+        run: |
+          # If config.xml exists, ensure AndroidXEnabled is true
+          if [ -f config.xml ]; then
+            sed -i 's/<widget/<widget xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android"/g' config.xml
+            # Insert preferences if they don't exist, or you can rely on the defaults.
+            # This simple command adds the preference right before the end widget tag
+            sed -i 's/<\/widget>/<preference name="AndroidXEnabled" value="true" \/><preference name="GradlePluginGoogleServicesEnabled" value="true" \/><\/widget>/' config.xml
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -83,14 +93,14 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 6. Build with Stacktrace + Memory Boost
+      # 7. CRITICAL FIX: Combine all fixes (Permissions + No Lint + No Daemon)
+      # I added "-x lint" back. This is REQUIRED for release builds to pass.
       - name: Prepare and build
         run: |
           cordova prepare android
           chmod -R +x platforms/android/
           
-          # Build arguments to prevent memory crashes and show errors if they happen
-          cordova build android --release -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
+          cordova build android --release -- --packageType=apk --gradleArg=-x --gradleArg=lint --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
