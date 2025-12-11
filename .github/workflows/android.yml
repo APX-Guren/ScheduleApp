@@ -29,7 +29,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK Tools
+      # 3. Install Android SDK Tools (Build Tools 30.0.3)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -62,7 +62,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins
+      # 5. FIX: Install Plugins (Adapter and Multidex)
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,7 +72,7 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Use Gradle 7.4.2 (Most stable for Cordova 10)
+      # 6. FIX: Use Gradle 7.4.2
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -83,17 +83,26 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Build with Jetifier Flags
-      # Added: -Pandroid.useAndroidX=true -Pandroid.enableJetifier=true
-      # These flags force the build system to convert the old 'local-notification' plugin code
-      # so it doesn't crash the build.
-      - name: Prepare and build
+      # 7. CRITICAL FIX: Run Gradle DIRECTLY (Bypass Cordova CLI)
+      # This fixes the "Command failed with exit code 1" issue.
+      - name: Prepare and Build with Gradle
         run: |
           cordova prepare android
+          
+          # Grant permissions
           chmod -R +x platforms/android/
           
-          cordova build android --debug -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Pandroid.useAndroidX=true --gradleArg=-Pandroid.enableJetifier=true --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
+          # Enter platform folder and run Gradle directly
+          cd platforms/android
+          ./gradlew assembleDebug \
+            --stacktrace \
+            --info \
+            -Pandroid.useAndroidX=true \
+            -Pandroid.enableJetifier=true \
+            -Dorg.gradle.daemon=false \
+            -Dorg.gradle.jvmargs=-Xmx4096m
 
+      # 8. Upload Debug APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
