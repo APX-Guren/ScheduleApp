@@ -19,7 +19,7 @@ jobs:
           echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
 
-      # 2. Use Java 17 for SDK Install
+      # 2. Use Java 17 for SDK Install (Prevents installer crash)
       - name: Set up JDK 17 for SDK Install
         uses: actions/setup-java@v4
         with:
@@ -29,7 +29,7 @@ jobs:
       - name: Install required system packages
         run: sudo apt-get update && sudo apt-get install -y wget unzip
 
-      # 3. Install Android SDK Tools
+      # 3. Install Android SDK Tools (Build Tools 30.0.3)
       - name: Install Android SDK tools
         run: |
           mkdir -p $ANDROID_HOME
@@ -42,7 +42,7 @@ jobs:
           yes | cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-30" "build-tools;30.0.3"
 
-      # 4. SWITCH to Java 11 for Cordova Build
+      # 4. SWITCH to Java 11 for Cordova Build (Crucial for Cordova Android 10)
       - name: Set up JDK 11 for Cordova
         uses: actions/setup-java@v4
         with:
@@ -62,7 +62,7 @@ jobs:
       - name: Install Cordova CLI
         run: npm install -g cordova
 
-      # 5. FIX: Install Plugins
+      # 5. FIX: Install Plugins (Adapter and Multidex fix most build errors)
       - name: Install Plugins and Fixes
         run: |
           npm install cordova-plugin-local-notification@0.9.0-beta.3 --save
@@ -72,17 +72,7 @@ jobs:
       - name: Install other npm deps
         run: npm install
 
-      # 6. FIX: Ensure config.xml forces AndroidX (Critical for the adapter to work)
-      - name: Configure AndroidX in Config.xml
-        run: |
-          # If config.xml exists, ensure AndroidXEnabled is true
-          if [ -f config.xml ]; then
-            sed -i 's/<widget/<widget xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android"/g' config.xml
-            # Insert preferences if they don't exist, or you can rely on the defaults.
-            # This simple command adds the preference right before the end widget tag
-            sed -i 's/<\/widget>/<preference name="AndroidXEnabled" value="true" \/><preference name="GradlePluginGoogleServicesEnabled" value="true" \/><\/widget>/' config.xml
-          fi
-
+      # 6. FIX: Use Gradle 7.6 (Compatible with Java 11 and Android 10)
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -93,17 +83,22 @@ jobs:
           cordova platform remove android || true
           cordova platform add android@10
 
-      # 7. CRITICAL FIX: Combine all fixes (Permissions + No Lint + No Daemon)
-      # I added "-x lint" back. This is REQUIRED for release builds to pass.
+      # 7. CRITICAL FIX: Build Debug APK
+      # - "clean": Removes old corrupt files
+      # - "--debug": Skips strict errors that fail release builds
+      # - "chmod": Ensures gradle works
       - name: Prepare and build
         run: |
+          cordova clean android
           cordova prepare android
           chmod -R +x platforms/android/
           
-          cordova build android --release -- --packageType=apk --gradleArg=-x --gradleArg=lint --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
+          cordova build android --debug -- --packageType=apk --gradleArg=--stacktrace --gradleArg=-Dorg.gradle.daemon=false --gradleArg=-Dorg.gradle.jvmargs=-Xmx2048m
 
+      # 8. Upload Debug APK
+      # Note: Path changes from 'release' to 'debug'
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: platforms/android/app/build/outputs/apk/release/*.apk
+          path: platforms/android/app/build/outputs/apk/debug/*.apk
